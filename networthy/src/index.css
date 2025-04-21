@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply h-full bg-gray-100 dark:bg-gray-900;
+  }
+  body {
+    @apply h-full bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6;
+  }
+  
+  .btn {
+    @apply px-4 py-2 rounded-lg font-semibold transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 active:bg-gray-300 dark:active:bg-gray-500 focus:ring-primary-500;
+  }
+  
+  .input {
+    @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100;
+  }
+}
+
+/* Removed Drag and Drop Styles */
+/*
+.accounts-container {
+  min-height: 100px;
+  position: relative;
+}
+
+.dragging {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  transition: transform 0.2s ease;
+  opacity: 0.8;
+  z-index: 10;
+}
+
+.dragging-over {
+  background-color: rgba(243, 244, 246, 0.5);
+  border-left: 4px solid #4f46e5;
+  transition: all 0.2s ease;
+}
+
+
+[role="button"] {
+  cursor: move;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+*/
