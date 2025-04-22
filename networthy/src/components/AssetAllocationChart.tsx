@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   PieChart,
@@ -8,6 +8,8 @@ import {
   Legend,
 } from 'recharts';
 import { useNetWorth, useNetWorthCalculations, getCurrentBalance } from '../context/NetWorthContext';
+import { Account } from '../types';
+import { Pie as AntPie } from '@ant-design/plots';
 
 // Color generation helper
 const stringToHslColor = (str: string, s: number, l: number): string => {
@@ -32,9 +34,10 @@ const formatCurrency = (value: number): string => {
 // Type for the grouping key
 type GroupingKey = 'institution' | 'type' | 'category';
 
-export function AssetAllocationChart() {
+const AssetAllocationChart = () => {
   const { state } = useNetWorth();
-  const { totalAssets } = useNetWorthCalculations(); 
+  const { accounts } = state;
+  const { totalAssets } = useNetWorthCalculations();
   // Add state for the selected grouping
   const [currentGroupBy, setCurrentGroupBy] = useState<GroupingKey>('institution');
 
@@ -42,7 +45,7 @@ export function AssetAllocationChart() {
   const pieChartData = useMemo(() => {
     const dataMap = new Map<string, { name: string; value: number }>();
 
-    state.accounts.forEach(account => {
+    accounts.forEach((account: Account) => {
       const currentBalance = getCurrentBalance(account);
       // Exclude liabilities and zero/negative balance assets for all views
       if (account.type === 'liability' || currentBalance <= 0) return;
@@ -54,7 +57,7 @@ export function AssetAllocationChart() {
           break;
         case 'type':
           // Format the type name for display
-          groupKey = account.type.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+          groupKey = account.type.split('_').map((w: string) => w[0].toUpperCase() + w.slice(1)).join(' ');
           break;
         case 'category':
           groupKey = account.category;
@@ -76,7 +79,7 @@ export function AssetAllocationChart() {
     });
 
     return Array.from(dataMap.values()).sort((a, b) => b.value - a.value); 
-  }, [state.accounts, currentGroupBy]);
+  }, [accounts, currentGroupBy]);
 
   // Assign colors using the helper function based on the group name
   const dataWithColors = pieChartData.map((entry) => ({
@@ -156,4 +159,6 @@ export function AssetAllocationChart() {
       )}
     </div>
   );
-} 
+}
+
+export default AssetAllocationChart; 

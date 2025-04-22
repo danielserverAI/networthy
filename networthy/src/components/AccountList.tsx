@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNetWorth, getCurrentBalance, getLatestBalanceEntry } from '../context/NetWorthContext';
 import { AccountForm } from './AccountForm';
 import { Account, AccountType } from '../types';

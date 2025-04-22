@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useCallback } from 'react';
-import { Account, AccountType, BalanceEntry } from '../types';
+import { Account, BalanceEntry } from '../types';
 import { NetWorthSnapshot } from '../types/NetWorthSnapshot';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';

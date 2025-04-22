@@ -8,7 +8,7 @@ interface HistoricalDataEntryProps {
 }
 
 export function HistoricalDataEntry({ onClose, dataPointToEdit }: HistoricalDataEntryProps) {
-  const { upsertHistoricalDataPoint } = useNetWorth();
+  const { upsertHistoricalData } = useNetWorth();
   const [year, setYear] = useState<number | ''>('');
   const [netWorth, setNetWorth] = useState<number | ''>('');
   const [error, setError] = useState<string>('');
@@ -48,21 +48,17 @@ export function HistoricalDataEntry({ onClose, dataPointToEdit }: HistoricalData
 
     setIsSubmitting(true);
     try {
-      const result = await upsertHistoricalDataPoint({ 
+      await upsertHistoricalData({ 
         year: numericYear,
         net_worth: numericNetWorth
       });
 
-      if (result) {
-        console.log(`${isEditing ? 'Updated' : 'Added'} historical data: Year ${year}, Net Worth ${netWorth}`);
-        onClose();
-      } else {
-          setError(`Failed to ${isEditing ? 'update' : 'add'} historical data. Please try again.`);
-      }
+      console.log(`${isEditing ? 'Updated' : 'Added'} historical data: Year ${year}, Net Worth ${netWorth}`);
+      onClose();
 
     } catch (err) {
         console.error("Error submitting historical data:", err);
-        setError('An unexpected error occurred.');
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
         setIsSubmitting(false);
     }

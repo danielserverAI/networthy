@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNetWorth } from '../context/NetWorthContext';
 import { format, parseISO } from 'date-fns';
+import { Account } from '../types';
 
 // Helper to format currency
 const formatCurrency = (value: number): string => {
@@ -10,12 +11,6 @@ const formatCurrency = (value: number): string => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
-};
-
-// Helper to calculate percentage change
-const calculatePercentageChange = (oldValue: number, newValue: number): number => {
-  if (oldValue === 0) return 0;
-  return ((newValue - oldValue) / Math.abs(oldValue)) * 100;
 };
 
 // Interface for the goal data used in the form/display
