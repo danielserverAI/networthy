@@ -112,11 +112,11 @@ function AppContent() {
 
           {/* Second Row: Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-stretch min-h-[350px]">
-             <div className="lg:col-span-3">
+             <div className="lg:col-span-3 min-h-[300px]">
                 <NetWorthTrendChart />
              </div>
-             <div className="lg:col-span-2">
-                 <AssetAllocationChart /> {/* Uses default import */}
+             <div className="lg:col-span-2 min-h-[300px]">
+                 <AssetAllocationChart />
              </div>
           </div>
 
