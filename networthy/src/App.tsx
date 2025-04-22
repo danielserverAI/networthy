@@ -155,7 +155,7 @@ function AppContent() {
         )}
 
         {/* Keyboard Shortcuts Modal */}
-        {showShortcuts && <KeyboardShortcuts />} {/* Removed onClose prop */}
+        {showShortcuts && <KeyboardShortcuts onClose={() => setShowShortcuts(false)} />} {/* Added onClose prop back */}
 
       </div>
     </AuthGate>

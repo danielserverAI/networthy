@@ -1,8 +1,6 @@
-import React from 'react';
 import { useState } from 'react'; // Import useState explicitly
 import { useNetWorth } from '../context/NetWorthContext';
 import { HistoricalDataPoint } from '../context/NetWorthContext'; // Import the type
-import { parseISO, formatDistanceToNow } from 'date-fns'; // Removed format
 
 interface HistoricalDataListProps {
   onEdit: (dataPoint: HistoricalDataPoint) => void; // Callback to signal editing

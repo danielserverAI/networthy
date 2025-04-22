@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNetWorth, useNetWorthCalculations, getLatestBalanceEntry, getCurrentBalance } from '../context/NetWorthContext';
+import { useNetWorth } from '../context/NetWorthContext';
 import { format, parseISO } from 'date-fns';
 
 // Helper to format currency

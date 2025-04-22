@@ -23,7 +23,7 @@ interface KeyboardShortcutsProps {
 }
 
 export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({ onClose }) => {
-  const { theme } = useTheme(); // Removed unused toggleTheme
+  const {} = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
