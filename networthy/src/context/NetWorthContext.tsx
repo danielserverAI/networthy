@@ -23,10 +23,18 @@ export interface HistoricalDataPoint {
   net_worth: number;
 }
 
+interface UserGoal {
+  target_amount: number;
+  target_date: string; // Keep as string (YYYY-MM-DD) for simplicity?
+}
+
 type State = {
   accounts: Account[];
   snapshots: NetWorthSnapshot[];
   historicalData: HistoricalDataPoint[];
+  loading: boolean;
+  error: PostgrestError | Error | null;
+  userGoal: UserGoal | null;
 };
 
 const getLatestBalanceEntry = (account: Account): BalanceEntry | null => {
@@ -65,18 +73,25 @@ export type NetWorthAction =
   | { type: 'SET_ACCOUNTS'; payload: Account[] }
   | { type: 'ADD_ACCOUNT'; payload: Account }
   | { type: 'UPDATE_ACCOUNT_METADATA'; payload: Account }
-  | { type: 'ADD_BALANCE_ENTRY'; payload: { accountId: string; balanceHistory: BalanceEntry[] } }
+  | { type: 'ADD_BALANCE_ENTRY'; payload: { accountId: string; balance: number; date: string } }
   | { type: 'DELETE_ACCOUNT'; payload: string }
   | { type: 'ADD_SNAPSHOT'; payload: Snapshot }
   | { type: 'UPDATE_ACCOUNTS_ORDER'; payload: Account[] }
   | { type: 'SET_HISTORICAL_DATA'; payload: HistoricalDataPoint[] }
   | { type: 'UPSERT_HISTORICAL_DATA_POINT'; payload: HistoricalDataPoint }
-  | { type: 'DELETE_HISTORICAL_DATA_POINT'; payload: { year: number } };
+  | { type: 'DELETE_HISTORICAL_DATA_POINT'; payload: { year: number } }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: PostgrestError | Error | null }
+  | { type: 'SET_USER_GOAL'; payload: UserGoal | null }
+  | { type: 'DELETE_USER_GOAL' };
 
 const initialState: State = {
   accounts: [],
   snapshots: [],
   historicalData: [],
+  loading: true,
+  error: null,
+  userGoal: null,
 };
 
 function calculateNetWorth(accounts: Account[]): {
@@ -132,16 +147,18 @@ function reducer(state: State, action: NetWorthAction): State {
       };
     }
     case 'ADD_BALANCE_ENTRY': {
+      const { accountId, balance, date } = action.payload;
       return {
         ...state,
-        accounts: state.accounts.map((account: Account) =>
-          account.id === action.payload.accountId
-            ? {
-                ...account,
-                balanceHistory: action.payload.balanceHistory,
-              }
-            : account
-        ),
+        accounts: state.accounts.map(acc => {
+          if (acc.id === accountId) {
+            const newHistory: BalanceEntry = { date, balance };
+            const updatedHistory = [...(acc.balanceHistory || []), newHistory]
+                                   .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            return { ...acc, balanceHistory: updatedHistory };
+          } 
+          return acc;
+        }),
       };
     }
     case 'DELETE_ACCOUNT': {
@@ -206,6 +223,14 @@ function reducer(state: State, action: NetWorthAction): State {
             ),
         };
     }
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_USER_GOAL':
+        return { ...state, userGoal: action.payload };
+    case 'DELETE_USER_GOAL':
+        return { ...state, userGoal: null };
     default:
       return state;
   }
@@ -220,10 +245,13 @@ interface NetWorthContextType {
   addAccount: (accountData: Omit<Account, 'id' | 'user_id' | 'created_at' | 'balanceHistory'> & { balance: number }) => Promise<Account | null>;
   updateAccountMetadata: (accountData: Omit<Account, 'user_id' | 'created_at' | 'balanceHistory'>) => Promise<Account | null>;
   deleteAccount: (accountId: string) => Promise<void>;
-  addBalanceEntry: (payload: { accountId: string; balance: number; date?: string }) => Promise<void>;
+  addBalanceEntry: (accountId: string, balance: number, date: string) => Promise<void>;
   fetchHistoricalData: () => Promise<void>;
   upsertHistoricalDataPoint: (dataPoint: { year: number; net_worth: number }) => Promise<HistoricalDataPoint | null>;
   deleteHistoricalDataPoint: (year: number) => Promise<void>;
+  fetchUserGoal: () => Promise<void>;
+  setUserGoal: (goal: UserGoal) => Promise<void>;
+  deleteUserGoal: () => Promise<void>;
 }
 
 const NetWorthContext = createContext<NetWorthContextType | null>(null);
@@ -231,31 +259,31 @@ const NetWorthContext = createContext<NetWorthContextType | null>(null);
 export function NetWorthProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<PostgrestError | Error | null>(null);
 
   const fetchAllUserData = useCallback(async () => {
     if (!user) {
       dispatch({ type: 'SET_ACCOUNTS', payload: [] });
       dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
-      setLoading(false);
-      setError(null);
+      dispatch({ type: 'SET_USER_GOAL', payload: null });
+      dispatch({ type: 'SET_ERROR', payload: null });
+      dispatch({ type: 'SET_LOADING', payload: false });
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
     console.log(`Fetching all data for user: ${user.id}`);
 
     try {
-      const [accountsResponse, historicalDataResponse] = await Promise.all([
+      const [accountsResponse, historicalDataResponse, goalResponse] = await Promise.all([
         supabase.from('accounts').select('*').eq('user_id', user.id),
-        supabase.from('historical_data').select('year, net_worth').eq('user_id', user.id)
+        supabase.from('historical_data').select('year, net_worth').eq('user_id', user.id),
+        supabase.from('user_goals').select('target_amount, target_date').eq('user_id', user.id).maybeSingle()
       ]);
 
       if (accountsResponse.error) {
         console.error("Error fetching accounts:", accountsResponse.error);
-        setError(accountsResponse.error);
+        dispatch({ type: 'SET_ERROR', payload: accountsResponse.error });
         dispatch({ type: 'SET_ACCOUNTS', payload: [] });
       } else {
         const accountsWithCorrectMapping = accountsResponse.data.map(acc => ({
@@ -268,21 +296,30 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
       if (historicalDataResponse.error) {
         console.error("Error fetching historical data:", historicalDataResponse.error);
-        if (!error) setError(historicalDataResponse.error);
+        dispatch({ type: 'SET_ERROR', payload: historicalDataResponse.error });
         dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
       } else {
         dispatch({ type: 'SET_HISTORICAL_DATA', payload: historicalDataResponse.data as HistoricalDataPoint[] });
       }
 
-    } catch (err) {
-        console.error("Unexpected error during fetchAllUserData:", err);
-        setError(err instanceof Error ? err : new Error("An unexpected error occurred fetching data"));
+      if (goalResponse.error) {
+          console.error("Error fetching user goal:", goalResponse.error);
+          dispatch({ type: 'SET_USER_GOAL', payload: null });
+          dispatch({ type: 'SET_ERROR', payload: goalResponse.error });
+      } else {
+          dispatch({ type: 'SET_USER_GOAL', payload: goalResponse.data as UserGoal | null });
+      }
+
+    } catch (err: any) {
+        console.error("Error fetching data:", err);
+        dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err : new Error(String(err)) });
         dispatch({ type: 'SET_ACCOUNTS', payload: [] });
         dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
+        dispatch({ type: 'SET_USER_GOAL', payload: null });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [user, error]);
+  }, [user]);
 
   useEffect(() => {
     fetchAllUserData();
@@ -318,7 +355,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
     if (insertError) {
       console.error("Error adding account:", insertError);
-      setError(insertError);
+      dispatch({ type: 'SET_ERROR', payload: insertError });
       return null;
     } else {
        console.log("Successfully inserted account:", data);
@@ -329,6 +366,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
            tags: Array.isArray(data.tags) ? data.tags : [],
         };
       dispatch({ type: 'ADD_ACCOUNT', payload: newAccount });
+      dispatch({ type: 'SET_ERROR', payload: null });
       return newAccount;
     }
   };
@@ -353,7 +391,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
      if (updateError) {
        console.error("Error updating account:", updateError);
-       setError(updateError);
+       dispatch({ type: 'SET_ERROR', payload: updateError });
        return null;
      } else {
        const updatedAccount: Account = {
@@ -362,6 +400,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
            tags: Array.isArray(data.tags) ? data.tags : [],
         };
        dispatch({ type: 'UPDATE_ACCOUNT_METADATA', payload: updatedAccount });
+       dispatch({ type: 'SET_ERROR', payload: null });
        return updatedAccount;
      }
    };
@@ -376,43 +415,64 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
      if (deleteError) {
        console.error("Error deleting account:", deleteError);
-       setError(deleteError);
+       dispatch({ type: 'SET_ERROR', payload: deleteError });
      } else {
        dispatch({ type: 'DELETE_ACCOUNT', payload: accountId });
      }
    };
 
-   const addBalanceEntry = async (payload: { accountId: string; balance: number; date?: string }): Promise<void> => {
-        if (!user) return;
-         const { accountId, balance, date } = payload;
-         const entryDate = date || new Date().toISOString();
-         const account = state.accounts.find(acc => acc.id === accountId);
-         if (!account) return;
+   const addBalanceEntry = async (accountId: string, balance: number, date: string) => {
+    if (!user) throw new Error("User not authenticated");
 
-         const newBalanceHistory = [
-             ...account.balanceHistory,
-             { date: entryDate, balance: balance }
-         ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      // 1. Fetch current balance history for the specific account
+      const { data: accountData, error: fetchError } = await supabase
+        .from('accounts')
+        .select('balance_history')
+        .eq('user_id', user.id)
+        .eq('id', accountId)
+        .single();
 
-         const { data, error: updateError } = await supabase
-           .from('accounts')
-           .update({ balance_history: newBalanceHistory })
-           .eq('id', accountId)
-           .eq('user_id', user.id)
-           .select('id, balance_history')
-           .single();
+      if (fetchError) throw fetchError;
+      if (!accountData) throw new Error('Account not found');
 
-         if (updateError) {
-           console.error("Error adding balance entry:", updateError);
-           setError(updateError);
-         } else {
-           dispatch({ type: 'ADD_BALANCE_ENTRY', payload: { accountId, balanceHistory: data.balance_history } });
-         }
-    };
+      // 2. Prepare the new entry and updated history
+      const currentHistory: BalanceEntry[] = accountData.balance_history || [];
+      const newEntry: BalanceEntry = { date, balance }; // Use the date passed in
+      
+      // Filter out any existing entry for the exact same date string before adding
+      // Note: Supabase uses timestamptz, direct string comparison might be okay,
+      // but comparing Date objects might be safer if formats vary.
+      const filteredHistory = currentHistory.filter(entry => entry.date !== date);
+      const updatedHistory = [...filteredHistory, newEntry]
+                                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // 3. Update the account in Supabase with the new history
+      const { error: updateError } = await supabase
+        .from('accounts')
+        .update({ balance_history: updatedHistory })
+        .eq('user_id', user.id)
+        .eq('id', accountId);
+
+      if (updateError) throw updateError;
+
+      // 4. Dispatch locally AFTER successful DB update using the correct payload
+      dispatch({ type: 'ADD_BALANCE_ENTRY', payload: { accountId, balance, date } });
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+    } catch (error: any) {
+      console.error("Error adding balance entry:", error);
+      dispatch({ type: 'SET_ERROR', payload: error });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
 
   const upsertHistoricalDataPoint = async (dataPoint: { year: number; net_worth: number }): Promise<HistoricalDataPoint | null> => {
       if (!user) return null;
-      setError(null);
+      dispatch({ type: 'SET_ERROR', payload: null });
 
       const dataToUpsert = {
           ...dataPoint,
@@ -427,7 +487,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
       if (upsertError) {
           console.error("Error upserting historical data:", upsertError);
-          setError(upsertError);
+          dispatch({ type: 'SET_ERROR', payload: upsertError });
           return null;
       } else {
           dispatch({ type: 'UPSERT_HISTORICAL_DATA_POINT', payload: data as HistoricalDataPoint });
@@ -437,7 +497,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
   const deleteHistoricalDataPoint = async (year: number): Promise<void> => {
       if (!user) return;
-      setError(null);
+      dispatch({ type: 'SET_ERROR', payload: null });
 
       const { error: deleteError } = await supabase
           .from('historical_data')
@@ -447,17 +507,83 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) {
           console.error("Error deleting historical data point:", deleteError);
-          setError(deleteError);
+          dispatch({ type: 'SET_ERROR', payload: deleteError });
       } else {
           dispatch({ type: 'DELETE_HISTORICAL_DATA_POINT', payload: { year } });
       }
   };
 
+  const fetchUserGoal = async () => {
+      if (!user) return;
+       dispatch({ type: 'SET_LOADING', payload: true });
+       try {
+           const { data, error } = await supabase
+               .from('user_goals')
+               .select('target_amount, target_date')
+               .eq('user_id', user.id)
+               .single();
+           if (error) {
+               if (error.code !== 'PGRST116') {
+                  throw error;
+               } else {
+                   dispatch({ type: 'SET_USER_GOAL', payload: null }); 
+               }
+           } else {
+               dispatch({ type: 'SET_USER_GOAL', payload: data as UserGoal });
+           }
+           dispatch({ type: 'SET_ERROR', payload: null });
+       } catch (err: any) {
+            console.error("Error fetching user goal:", err);
+            dispatch({ type: 'SET_ERROR', payload: err });
+            dispatch({ type: 'SET_USER_GOAL', payload: null });
+       } finally {
+           dispatch({ type: 'SET_LOADING', payload: false });
+       }
+  };
+
+  const setUserGoal = async (goal: UserGoal) => {
+    if (!user) throw new Error("User not authenticated");
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const upsertData = { ...goal, user_id: user.id };
+      const { data, error } = await supabase.from('user_goals').upsert(upsertData).select().single();
+      
+      if (error) throw error;
+      
+      dispatch({ type: 'SET_USER_GOAL', payload: data as UserGoal });
+      dispatch({ type: 'SET_ERROR', payload: null });
+    } catch (err: any) {
+      console.error("Error setting user goal:", err);
+      dispatch({ type: 'SET_ERROR', payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const deleteUserGoal = async () => {
+    if (!user) throw new Error("User not authenticated");
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const { error } = await supabase.from('user_goals').delete().eq('user_id', user.id);
+      if (error) throw error;
+      
+      dispatch({ type: 'DELETE_USER_GOAL' });
+      dispatch({ type: 'SET_ERROR', payload: null });
+    } catch (err: any) {
+      console.error("Error deleting user goal:", err);
+      dispatch({ type: 'SET_ERROR', payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
   const contextValue: NetWorthContextType = {
     state,
     dispatch,
-    loading,
-    error,
+    loading: state.loading,
+    error: state.error,
     fetchAccounts: fetchAllUserData,
     addAccount,
     updateAccountMetadata,
@@ -466,6 +592,9 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
     fetchHistoricalData: fetchAllUserData,
     upsertHistoricalDataPoint,
     deleteHistoricalDataPoint,
+    fetchUserGoal,
+    setUserGoal,
+    deleteUserGoal,
   };
 
   return <NetWorthContext.Provider value={contextValue}>{children}</NetWorthContext.Provider>;

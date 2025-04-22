@@ -95,49 +95,43 @@ export function AccountForm({ account, onClose }: AccountFormProps) {
 
     try {
       const currentBalance = parseFloat(formData.balance);
-      let success = false;
+      let success = false; 
 
       if (account) {
-        // --- EDITING EXISTING ACCOUNT ---
-        let metadataUpdated = false;
-        // 1. Update metadata if changed
-        if (account.institution !== formData.institution ||
-            account.type !== formData.type ||
-            account.name !== formData.name ||
-            account.category !== formData.category ||
-            account.order !== (account.order ?? 0) || // Check if order changed from existing (handle undefined case)
-            JSON.stringify(account.tags.sort()) !== JSON.stringify(formData.tags.sort()))
-        {
-            const updatedMetadata = {
-                id: account.id,
-                institution: formData.institution,
-                type: formData.type as AccountType,
-                name: formData.name || undefined,
-                category: formData.category || undefined,
-                tags: formData.tags || [],
-                order: account.order ?? 0 // Preserve existing order or default to 0
-            };
-            const updatedAccount = await updateAccountMetadata(updatedMetadata);
-            if (updatedAccount) {
-                 metadataUpdated = true; // Mark as updated for balance check logic
-             } else {
-                 throw new Error(contextError?.message || "Failed to update account metadata.");
-             }
+        // --- UPDATING EXISTING ACCOUNT ---
+        let isValid = true; // Start assuming valid
+        if (isNaN(currentBalance)) {
+          setFieldErrors(prev => ({ ...prev, balance: "Invalid balance number."}) );
+          isValid = false; // Set to false if balance is NaN
         }
 
-        // 2. Add new balance entry ONLY if balance changed
-        if (currentBalance !== originalBalance) {
-          await addBalanceEntry({
-            accountId: account.id,
-            balance: currentBalance,
-            // date is optional, defaults to now in context function
-          });
-           // Assume success if no error thrown by addBalanceEntry (which sets contextError)
-           if(contextError) throw new Error(contextError.message || "Failed to add balance entry.");
-            success = true; // Mark success if balance updated
-        } else {
-             // If only metadata changed, still consider it a success for closing form
-             success = metadataUpdated;
+        // Use isValid here, not success!
+        if (isValid) { 
+           const updatedAccountData: Omit<Account, 'user_id' | 'created_at' | 'balanceHistory'> = { 
+             id: account.id, 
+             institution: formData.institution,
+             type: formData.type as AccountType,
+             name: formData.name || undefined,
+             category: formData.category || undefined,
+             tags: formData.tags || [],
+             order: account.order ?? 0 
+          };
+
+          const metadataUpdated = await updateAccountMetadata(updatedAccountData); 
+
+          const previousBalance = getCurrentBalance(account);
+          let balanceUpdated = true; // Assume balance update succeeds or isn't needed
+          if (currentBalance !== previousBalance) {
+            try {
+                await addBalanceEntry(account.id, currentBalance, new Date().toISOString());
+            } catch (balanceError) {
+                console.error("Error adding balance entry during update:", balanceError);
+                // Optionally set a specific error message about balance update failing
+                balanceUpdated = false; // Mark balance update as failed
+            }
+          }
+          // Success if metadata update worked AND balance update worked (or wasn't needed)
+          success = !!metadataUpdated && balanceUpdated; 
         }
 
       } else {

@@ -12,6 +12,7 @@ import { useAuth } from './context/AuthContext';
 import AuthGate from './components/AuthGate';
 import { AssetAllocationChart } from './components/AssetAllocationChart';
 import { NetWorthTrendChart } from './components/NetWorthTrendChart';
+import { UserProfileDropdown } from './components/UserProfileDropdown';
 
 function AppContent() {
   const { state, dispatch } = useNetWorth();
@@ -95,22 +96,7 @@ function AppContent() {
         <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
             <h1 className="text-2xl font-bold text-primary-600">Networthy</h1>
-            <div className="flex items-center gap-3">
-              {user && (
-                <button
-                  onClick={async () => { // Wrap signOut in async function
-                    const { error } = await signOut();
-                    if (error) {
-                      console.error('Error signing out:', error);
-                      // Optionally show error to user
-                    }
-                  }}
-                  className="btn-secondary"
-                  disabled={loading}
-                >
-                  Sign Out
-                </button>
-              )}
+            <div className="flex items-center gap-4">
               <button
                 onClick={toggleTheme}
                 className="btn-secondary"
@@ -118,12 +104,11 @@ function AppContent() {
               >
                 {theme === 'light' ? '🌙' : '☀️'}
               </button>
-              <button
-                onClick={() => setShowDataManagement(true)}
-                className="btn-secondary"
-              >
-                Data Management
-              </button>
+              {user && (
+                <UserProfileDropdown 
+                  onDataManagementClick={() => setShowDataManagement(true)} 
+                />
+              )}
             </div>
           </div>
         </header>

@@ -174,7 +174,7 @@ export function NetWorthTrendChart() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
               dataKey="date" 
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 12, fill: '#6b7280' }}
               tickFormatter={(dateStr) => format(parseISO(dateStr), 'MMM yy')}
               angle={-45}
               textAnchor="end"
@@ -183,17 +183,19 @@ export function NetWorthTrendChart() {
             <YAxis
               tickFormatter={(value) => formatCurrency(value)}
               width={100}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 12, fill: '#6b7280' }}
             />
             <Tooltip
               formatter={(value: number) => formatCurrency(value)}
               labelFormatter={(label) => `Date: ${format(parseISO(label), 'MMM d, yyyy')}`} // Improved label format
               contentStyle={{
-                backgroundColor: 'white',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
                 border: '1px solid #e5e7eb',
                 borderRadius: '0.5rem',
                 padding: '0.5rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               }}
+              cursor={{ fill: 'rgba(200, 200, 200, 0.1)' }}
             />
             <Area
               type="monotone"
@@ -209,7 +211,7 @@ export function NetWorthTrendChart() {
       </div>
       {/* Performance Summary Section (Copied from Analytics) */}
       {performance && (
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-around text-sm text-gray-700 dark:text-gray-300 shrink-0"> {/* Footer part */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap justify-around text-sm text-gray-700 dark:text-gray-300 shrink-0"> {/* Adjusted dark color */}
           <div>
             <span className="font-medium">Start ({format(parseISO(performance.startDate), 'MMM d')}): </span>
             {formatCurrency(performance.startValue)}

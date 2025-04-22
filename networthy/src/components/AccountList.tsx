@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useNetWorth, getCurrentBalance, getLatestBalanceEntry } from '../context/NetWorthContext';
 import { AccountForm } from './AccountForm';
-import { Account, AccountType } from '../types';
+import { Account, AccountType, BalanceEntry } from '../types';
 import { format, parseISO } from 'date-fns';
 import { AccountProgression } from './AccountProgression';
 
@@ -28,8 +28,25 @@ const getAccountIcon = (type: AccountType): string => {
   return icons[type];
 };
 
+// --- Helper function moved from Analytics.tsx ---
+const calculatePercentageChange = (oldValue: number, newValue: number): number => {
+  if (oldValue === 0 && newValue === 0) return 0; // Avoid NaN if both are 0
+  if (oldValue === 0) return Infinity; // Or handle as appropriate (e.g., return 100 if newValue > 0)
+  return ((newValue - oldValue) / Math.abs(oldValue)) * 100;
+};
+
+// Helper to format currency
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0, 
+    maximumFractionDigits: 2, // Keep cents for account list
+  }).format(value);
+};
+
 export function AccountList() {
-  const { state, deleteAccount, loading: contextLoading, error: contextError } = useNetWorth();
+  const { state, deleteAccount, addBalanceEntry, loading: contextLoading, error: contextError } = useNetWorth();
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
@@ -39,6 +56,10 @@ export function AccountList() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('institution');
+  
+  // State for inline editing
+  const [editingBalanceAccountId, setEditingBalanceAccountId] = useState<string | null>(null);
+  const [inlineBalanceValue, setInlineBalanceValue] = useState<string>('');
 
   const handleDelete = (account: Account) => {
     setAccountToDelete(account);
@@ -62,11 +83,15 @@ export function AccountList() {
   };
 
   const handleEdit = (account: Account) => {
+    // Cancel inline editing if trying to open full form
+    setEditingBalanceAccountId(null);
     setSelectedAccount(account);
     setIsFormOpen(true);
   };
 
   const handleAddNew = () => {
+    // Cancel inline editing if trying to open full form
+    setEditingBalanceAccountId(null);
     setSelectedAccount(null);
     setIsFormOpen(true);
   };
@@ -74,6 +99,41 @@ export function AccountList() {
   const closeForm = () => {
     setIsFormOpen(false);
     setSelectedAccount(null);
+  };
+
+  // --- Inline Balance Edit Functions ---
+  const startInlineEdit = (account: Account) => {
+    // Cancel other inline edits first
+    setEditingBalanceAccountId(account.id);
+    // Set initial input value without currency symbols/commas
+    setInlineBalanceValue(String(getCurrentBalance(account) || 0)); 
+    // Close full form if open
+    setIsFormOpen(false);
+    setSelectedAccount(null);
+  };
+
+  const handleCancelInlineEdit = () => {
+    setEditingBalanceAccountId(null);
+    setInlineBalanceValue('');
+  };
+
+  const handleSaveInlineBalance = async () => {
+    if (editingBalanceAccountId === null) return;
+
+    const newBalance = parseFloat(inlineBalanceValue);
+    if (isNaN(newBalance)) {
+      // Handle invalid input - maybe show an error briefly
+      console.error("Invalid balance value");
+      return;
+    }
+
+    try {
+      await addBalanceEntry(editingBalanceAccountId, newBalance, new Date().toISOString());
+      handleCancelInlineEdit(); // Close editor on success
+    } catch (err) {
+      console.error("Failed to add balance entry:", err);
+      // Optionally show error to user near the input
+    }
   };
 
   const { categories, tags } = useMemo(() => {
@@ -150,6 +210,35 @@ export function AccountList() {
       });
   }, [state.accounts, searchQuery, selectedCategory, selectedTags, sortBy]);
 
+  // --- Account Performance Calculation (Moved from Analytics.tsx) ---
+  const accountPerformance = useMemo(() => {
+    return state.accounts.map(account => {
+      if (!account.balanceHistory || account.balanceHistory.length === 0) return null;
+      
+      const sortedHistory = [...account.balanceHistory].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+      const oldestEntry = sortedHistory[0];
+      const latestEntry = sortedHistory[sortedHistory.length - 1];
+
+      if (sortedHistory.length < 2) {
+           return {
+              id: account.id, // Need id to map back
+              percentageChange: 0,
+              hasEnoughData: false // Flag to indicate N/A
+           }
+      } 
+      
+      const oldestBalance = oldestEntry.balance;
+      const latestBalance = latestEntry.balance;
+      const percentageChange = calculatePercentageChange(oldestBalance, latestBalance);
+
+      return {
+        id: account.id,
+        percentageChange,
+        hasEnoughData: true
+      };
+    }).filter(Boolean);
+  }, [state.accounts]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
@@ -222,7 +311,7 @@ export function AccountList() {
         </div>
       </div>
 
-      <div className="accounts-container p-1 space-y-0">
+      <div className="accounts-container p-1 space-y-0 overflow-x-auto">
         {contextLoading ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading accounts...</div>
         ) : filteredAccounts.length === 0 ? (
@@ -231,70 +320,98 @@ export function AccountList() {
             <p>Try adjusting your search or filters, or add a new account!</p>
           </div>
         ) : (
-          filteredAccounts.map((account, index) => {
-            const latestBalanceEntry = getLatestBalanceEntry(account);
-            const displayBalance = latestBalanceEntry ? latestBalanceEntry.balance : 0;
-            const displayDate = latestBalanceEntry ? latestBalanceEntry.date : null;
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Change</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Balance</th>
+                <th scope="col" className="relative px-6 py-3">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredAccounts.map((account) => {
+                const latestBalanceEntry = getLatestBalanceEntry(account);
+                const currentBalance = latestBalanceEntry?.balance ?? 0;
+                const balanceDate = latestBalanceEntry?.date ? format(parseISO(latestBalanceEntry.date), 'MMM dd, yyyy') : 'No date';
+                const performanceData = accountPerformance.find(p => p?.id === account.id);
+                const isEditingBalance = editingBalanceAccountId === account.id;
 
-            return (
-              <div 
-                key={account.id}
-                className={`bg-white dark:bg-gray-800 p-4 flex items-center justify-between 
-                           ${index < filteredAccounts.length - 1 ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}
-              >
-                <div className="flex items-center space-x-4">
-                  <span className="text-2xl">{getAccountIcon(account.type)}</span>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                      {account.institution}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                      {account.name ? `${account.name} • ` : ''} 
-                      {formatAccountType(account.type)}
-                      {account.category && ` • ${account.category}`}
-                    </p>
-                    {account.tags && account.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {account.tags.map((tag: string) => (
-                          <span
-                            key={tag}
-                            className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                return (
+                  <tr key={account.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center text-xl">
+                          {getAccountIcon(account.type)}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{account.institution}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-300">{account.name || account.type}</div>
+                          {account.tags && account.tags.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {account.tags.map(tag => (
+                                <span key={tag} className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="text-right flex flex-col items-end space-y-1">
-                  <p className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-                    {displayBalance.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {displayDate ? `as of ${format(parseISO(displayDate), 'PP')}` : 'No balance history'}
-                  </p>
-                  <div className="flex space-x-2 pt-1">
-                    <button
-                      onClick={() => handleEdit(account)}
-                      className="btn-secondary btn-xs"
-                      aria-label={`Edit ${account.institution}`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(account)}
-                      className="btn-danger btn-xs"
-                      aria-label={`Delete ${account.institution}`}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {performanceData?.hasEnoughData ? (
+                        <span className={`font-medium ${
+                          performanceData.percentageChange === Infinity ? 'text-green-600' : 
+                          performanceData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {performanceData.percentageChange === Infinity ? 'New+' : `${performanceData.percentageChange.toFixed(1)}%`}
+                        </span>
+                      ) : (
+                        <span>N/A</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      {isEditingBalance ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <input 
+                            type="number"
+                            value={inlineBalanceValue}
+                            onChange={(e) => setInlineBalanceValue(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineBalance(); if (e.key === 'Escape') handleCancelInlineEdit(); }}
+                            className="input input-sm w-32 text-right"
+                            autoFocus
+                          />
+                          <button onClick={handleSaveInlineBalance} className="text-green-600 hover:text-green-800" aria-label="Save Balance">✓</button>
+                          <button onClick={handleCancelInlineEdit} className="text-red-600 hover:text-red-800" aria-label="Cancel Edit">✗</button>
+                        </div>
+                      ) : (
+                        <div onClick={() => startInlineEdit(account)} className="cursor-pointer group">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-primary-600">
+                            {formatCurrency(currentBalance)}
+                            <span className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
+                           </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">as of {balanceDate}</div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                      <button onClick={() => handleEdit(account)} className="text-primary-600 hover:text-primary-800 dark:hover:text-primary-400">Update</button>
+                      <button 
+                        onClick={() => handleDelete(account)} 
+                        className="text-red-600 hover:text-red-800 dark:hover:text-red-400" 
+                        aria-label={`Delete ${account.institution}`}
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
