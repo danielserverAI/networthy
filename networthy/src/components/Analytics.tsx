@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNetWorth } from '../context/NetWorthContext';
 import { format, parseISO } from 'date-fns';
-import { PostgrestError } from '@supabase/supabase-js';
 
 // Helper to format currency
 const formatCurrency = (value: number): string => {
@@ -30,8 +29,6 @@ export function Analytics() {
       state, 
       setUserGoal, 
       deleteUserGoal, 
-      loading: contextLoading,
-      error: contextError
   } = useNetWorth();
   
   const [showGoalForm, setShowGoalForm] = useState(false);
@@ -49,37 +46,6 @@ export function Analytics() {
         setGoalFormData({ target_amount: 0, target_date: format(new Date(), 'yyyy-MM-dd') });
     }
   }, [state.userGoal]);
-
-  // Calculate account performance
-  const accountPerformance = useMemo(() => {
-    return state.accounts.map(account => {
-      if (!account.balanceHistory || account.balanceHistory.length === 0) return null;
-      
-      const sortedHistory = [...account.balanceHistory].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
-      const oldestEntry = sortedHistory[0];
-      const latestEntry = sortedHistory[sortedHistory.length - 1];
-
-      if (sortedHistory.length < 2) {
-           return {
-              account,
-              percentageChange: 0,
-              oldestBalance: latestEntry.balance,
-              latestBalance: latestEntry.balance,
-           }
-      } 
-      
-      const oldestBalance = oldestEntry.balance;
-      const latestBalance = latestEntry.balance;
-      const percentageChange = calculatePercentageChange(oldestBalance, latestBalance);
-
-      return {
-        account,
-        percentageChange,
-        oldestBalance,
-        latestBalance,
-      };
-    }).filter(Boolean);
-  }, [state.accounts]);
 
   // Calculate current amount for goal display (using latest snapshot)
   const currentGoalAmount = useMemo(() => {

@@ -4,7 +4,6 @@ import { NetWorthDashboard } from './components/NetWorthDashboard';
 import { AccountList } from './components/AccountList';
 import { useEffect, useState } from 'react';
 import { useNetWorthCalculations } from './context/NetWorthContext';
-import { HistoricalDataEntry } from './components/HistoricalDataEntry';
 import { DataManagement } from './components/DataManagement';
 import { Analytics } from './components/Analytics';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
@@ -18,10 +17,9 @@ function AppContent() {
   const { state, dispatch } = useNetWorth();
   const { theme, toggleTheme } = useTheme();
   const { totalAssets, totalLiabilities, netWorth } = useNetWorthCalculations();
-  const [showHistoricalForm, setShowHistoricalForm] = useState(false);
   const [showDataManagement, setShowDataManagement] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const { user, signOut, loading } = useAuth();
+  const { user, loading } = useAuth();
 
   // Create snapshot whenever balances change (Conditional on user)
   useEffect(() => {
@@ -65,7 +63,7 @@ function AppContent() {
             break;
           case 'h':
             e.preventDefault();
-            setShowHistoricalForm(true);
+            alert('Historical data entry shortcut (Ctrl+H) pressed, but component is not implemented/used.');
             break;
           case 'm':
             e.preventDefault();
@@ -78,7 +76,6 @@ function AppContent() {
         }
       }
       if (e.key === 'Escape') {
-        setShowHistoricalForm(false);
         setShowDataManagement(false);
         setShowShortcuts(false);
       }

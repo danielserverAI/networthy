@@ -1,5 +1,5 @@
 import React, { useState, FormEvent, useEffect } from 'react';
-import { Account, AccountType, BalanceEntry } from '../types';
+import { Account, AccountType /*, BalanceEntry */ } from '../types'; // Removed BalanceEntry
 import { useNetWorth, getCurrentBalance } from '../context/NetWorthContext';
 
 interface AccountFormProps {
@@ -42,7 +42,6 @@ export function AccountForm({ account, onClose }: AccountFormProps) {
     tags: account?.tags || [], // Add tags
   });
 
-  const [originalBalance, setOriginalBalance] = useState<number>(initialBalance);
   const [isSubmitting, setIsSubmitting] = useState(false); // Form submission loading state
   const [formError, setFormError] = useState<string | null>(null); // Form-specific error message
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({}); // Field validation errors
@@ -58,7 +57,6 @@ export function AccountForm({ account, onClose }: AccountFormProps) {
         category: account?.category || '',
         tags: account?.tags || [],
     });
-    setOriginalBalance(currentBal);
     setFieldErrors({});
     setFormError(null);
     setIsSubmitting(false);

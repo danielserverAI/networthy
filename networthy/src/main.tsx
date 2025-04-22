@@ -1,6 +1,6 @@
-import React from 'react';
+// import React from 'react'; // Removed
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './context/AuthContext';
 import { NetWorthProvider } from './context/NetWorthContext';

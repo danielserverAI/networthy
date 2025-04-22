@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useNetWorth } from '../context/NetWorthContext';
-import { format, parseISO, subMonths, subYears, startOfMonth, endOfMonth, eachMonthOfInterval, formatISO, endOfYear } from 'date-fns';
+import { format, parseISO, subMonths, subYears, formatISO, endOfYear } from 'date-fns';
 import {
   ResponsiveContainer,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   AreaChart,
   Area,
 } from 'recharts';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Import hooks explicitly
 import { useTheme } from '../context/ThemeContext';
 
 interface Shortcut {
@@ -18,8 +18,8 @@ const shortcuts: Shortcut[] = [
 ];
 
 export function KeyboardShortcuts() {
+  const { /* theme, */ toggleTheme } = useTheme(); // Removed theme variable
   const [isOpen, setIsOpen] = useState(false);
-  const { theme } = useTheme();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

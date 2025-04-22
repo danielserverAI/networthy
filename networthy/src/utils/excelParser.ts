@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Account, AccountType } from '../types';
+import { Account, AccountType, BalanceEntry } from '../types';
 
 // --- Configuration --- 
 // Define the exact column names from your Excel file and their variations
@@ -110,7 +110,7 @@ const parseBalance = (value: any): number => {
 
 // --- Main Parsing Function ---
 
-export interface ParsedAccountData extends Omit<Account, 'id'> {
+export interface ParsedAccountData extends Omit<Account, 'id' | 'user_id' | 'created_at' | 'order'> {
   originalSheet: string;
 }
 
@@ -173,11 +173,18 @@ export const parseExcelData = async (file: File): Promise<ParsedAccountData[]> =
               ? String(row[typeColIndex] || '').trim()
               : '';
 
+            const accountType = mapExcelType(excelType);
+
+            // Prepare the initial balance history entry
+            const balanceEntry: BalanceEntry = { date: lastUpdated, balance: balance };
+
             parsedAccounts.push({
               institution,
-              type: mapExcelType(excelType),
-              balance,
-              lastUpdated,
+              type: accountType,
+              name: undefined,
+              category: undefined,
+              tags: [],
+              balanceHistory: [balanceEntry],
               originalSheet: sheetName,
             });
           }

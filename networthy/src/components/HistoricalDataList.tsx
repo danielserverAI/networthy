@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react'; // Import useState explicitly
 import { useNetWorth } from '../context/NetWorthContext';
 import { HistoricalDataPoint } from '../context/NetWorthContext'; // Import the type
+import { format } from 'date-fns';
 
 interface HistoricalDataListProps {
   onEdit: (dataPoint: HistoricalDataPoint) => void; // Callback to signal editing

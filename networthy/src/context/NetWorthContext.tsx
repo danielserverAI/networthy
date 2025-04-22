@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useCallback } from 'react';
 import { Account, AccountType, BalanceEntry } from '../types';
 import { NetWorthSnapshot } from '../types/NetWorthSnapshot';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,19 +13,14 @@ type Snapshot = {
   date: string;
 };
 
-type HistoricalData = {
-  year: number;
-  netWorth: number;
-};
+interface UserGoal {
+  target_amount: number;
+  target_date: string; 
+}
 
 export interface HistoricalDataPoint {
   year: number;
   net_worth: number;
-}
-
-interface UserGoal {
-  target_amount: number;
-  target_date: string; // Keep as string (YYYY-MM-DD) for simplicity?
 }
 
 type State = {
@@ -52,23 +47,6 @@ const getCurrentBalance = (account: Account): number => {
   return latestEntry ? latestEntry.balance : 0;
 }
 
-interface AddAccountPayload {
-  institution: string;
-  type: AccountType;
-  name?: string;
-  balance: number;
-}
-
-interface AddBalanceEntryPayload {
-  accountId: string;
-  balance: number;
-  date?: string;
-}
-
-interface UpdateAccountMetadataPayload extends Partial<Omit<Account, 'balanceHistory' | 'id'>> {
-    id: string;
-}
-
 export type NetWorthAction =
   | { type: 'SET_ACCOUNTS'; payload: Account[] }
   | { type: 'ADD_ACCOUNT'; payload: Account }
@@ -78,8 +56,8 @@ export type NetWorthAction =
   | { type: 'ADD_SNAPSHOT'; payload: Snapshot }
   | { type: 'UPDATE_ACCOUNTS_ORDER'; payload: Account[] }
   | { type: 'SET_HISTORICAL_DATA'; payload: HistoricalDataPoint[] }
-  | { type: 'UPSERT_HISTORICAL_DATA_POINT'; payload: HistoricalDataPoint }
-  | { type: 'DELETE_HISTORICAL_DATA_POINT'; payload: { year: number } }
+  | { type: 'UPSERT_HISTORICAL_DATA'; payload: HistoricalDataPoint }
+  | { type: 'DELETE_HISTORICAL_DATA'; payload: number }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: PostgrestError | Error | null }
   | { type: 'SET_USER_GOAL'; payload: UserGoal | null }
@@ -125,7 +103,6 @@ function reducer(state: State, action: NetWorthAction): State {
         ...state,
         accounts: action.payload,
         snapshots: [],
-        historicalData: [],
       };
     case 'ADD_ACCOUNT': {
       if (state.accounts.some((acc: Account) => acc.id === action.payload.id)) {
@@ -198,13 +175,13 @@ function reducer(state: State, action: NetWorthAction): State {
             ...state,
             historicalData: action.payload.sort((a, b) => a.year - b.year),
         };
-    case 'UPSERT_HISTORICAL_DATA_POINT': {
+    case 'UPSERT_HISTORICAL_DATA': {
         const existingIndex = state.historicalData.findIndex(
-            (item: HistoricalDataPoint) => item.year === action.payload.year
+            (item) => item.year === action.payload.year
         );
         let updatedHistoricalData;
         if (existingIndex !== -1) {
-            updatedHistoricalData = state.historicalData.map((item: HistoricalDataPoint, index: number) =>
+            updatedHistoricalData = state.historicalData.map((item, index) =>
                 index === existingIndex ? action.payload : item
             );
         } else {
@@ -215,11 +192,11 @@ function reducer(state: State, action: NetWorthAction): State {
             historicalData: updatedHistoricalData,
         };
     }
-    case 'DELETE_HISTORICAL_DATA_POINT': {
+    case 'DELETE_HISTORICAL_DATA': {
         return {
             ...state,
             historicalData: state.historicalData.filter(
-                (item: HistoricalDataPoint) => item.year !== action.payload.year
+                (item) => item.year !== action.payload
             ),
         };
     }
@@ -247,8 +224,8 @@ interface NetWorthContextType {
   deleteAccount: (accountId: string) => Promise<void>;
   addBalanceEntry: (accountId: string, balance: number, date: string) => Promise<void>;
   fetchHistoricalData: () => Promise<void>;
-  upsertHistoricalDataPoint: (dataPoint: { year: number; net_worth: number }) => Promise<HistoricalDataPoint | null>;
-  deleteHistoricalDataPoint: (year: number) => Promise<void>;
+  upsertHistoricalData: (dataPoint: HistoricalDataPoint) => Promise<void>;
+  deleteHistoricalData: (year: number) => Promise<void>;
   fetchUserGoal: () => Promise<void>;
   setUserGoal: (goal: UserGoal) => Promise<void>;
   deleteUserGoal: () => Promise<void>;
@@ -295,11 +272,11 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
       }
 
       if (historicalDataResponse.error) {
-        console.error("Error fetching historical data:", historicalDataResponse.error);
-        dispatch({ type: 'SET_ERROR', payload: historicalDataResponse.error });
-        dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
+          console.error("Error fetching historical data:", historicalDataResponse.error);
+          dispatch({ type: 'SET_ERROR', payload: historicalDataResponse.error });
+          dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
       } else {
-        dispatch({ type: 'SET_HISTORICAL_DATA', payload: historicalDataResponse.data as HistoricalDataPoint[] });
+          dispatch({ type: 'SET_HISTORICAL_DATA', payload: historicalDataResponse.data as HistoricalDataPoint[] });
       }
 
       if (goalResponse.error) {
@@ -470,47 +447,59 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const upsertHistoricalDataPoint = async (dataPoint: { year: number; net_worth: number }): Promise<HistoricalDataPoint | null> => {
-      if (!user) return null;
-      dispatch({ type: 'SET_ERROR', payload: null });
-
-      const dataToUpsert = {
-          ...dataPoint,
-          user_id: user.id,
-      };
-
-      const { data, error: upsertError } = await supabase
-          .from('historical_data')
-          .upsert(dataToUpsert, { onConflict: 'user_id, year' })
-          .select('year, net_worth')
-          .single();
-
-      if (upsertError) {
-          console.error("Error upserting historical data:", upsertError);
-          dispatch({ type: 'SET_ERROR', payload: upsertError });
-          return null;
-      } else {
-          dispatch({ type: 'UPSERT_HISTORICAL_DATA_POINT', payload: data as HistoricalDataPoint });
-          return data as HistoricalDataPoint;
-      }
+  const fetchHistoricalData = async () => {
+      if (!user) return;
+       dispatch({ type: 'SET_LOADING', payload: true });
+       try {
+           const { data, error } = await supabase
+               .from('historical_data')
+               .select('year, net_worth')
+               .eq('user_id', user.id);
+           if (error) throw error;
+           dispatch({ type: 'SET_HISTORICAL_DATA', payload: data as HistoricalDataPoint[] });
+           dispatch({ type: 'SET_ERROR', payload: null });
+       } catch (err: any) {
+           console.error("Error fetching historical data:", err);
+           dispatch({ type: 'SET_ERROR', payload: err });
+           dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
+       } finally {
+            dispatch({ type: 'SET_LOADING', payload: false });
+       }
   };
 
-  const deleteHistoricalDataPoint = async (year: number): Promise<void> => {
-      if (!user) return;
+  const upsertHistoricalData = async (dataPoint: HistoricalDataPoint) => {
+    if (!user) throw new Error("User not authenticated");
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const upsertData = { ...dataPoint, user_id: user.id };
+      const { error } = await supabase.from('historical_data').upsert(upsertData, { onConflict: 'user_id, year' });
+      if (error) throw error;
+      dispatch({ type: 'UPSERT_HISTORICAL_DATA', payload: dataPoint });
       dispatch({ type: 'SET_ERROR', payload: null });
+    } catch (err: any) {
+      console.error("Error saving historical data:", err);
+      dispatch({ type: 'SET_ERROR', payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
 
-      const { error: deleteError } = await supabase
-          .from('historical_data')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('year', year);
-
-      if (deleteError) {
-          console.error("Error deleting historical data point:", deleteError);
-          dispatch({ type: 'SET_ERROR', payload: deleteError });
-      } else {
-          dispatch({ type: 'DELETE_HISTORICAL_DATA_POINT', payload: { year } });
-      }
+  const deleteHistoricalData = async (year: number) => {
+    if (!user) throw new Error("User not authenticated");
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const { error } = await supabase.from('historical_data').delete().eq('user_id', user.id).eq('year', year);
+      if (error) throw error;
+      dispatch({ type: 'DELETE_HISTORICAL_DATA', payload: year });
+      dispatch({ type: 'SET_ERROR', payload: null });
+    } catch (err: any) {
+      console.error("Error deleting historical data:", err);
+      dispatch({ type: 'SET_ERROR', payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
   };
 
   const fetchUserGoal = async () => {
@@ -589,9 +578,9 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
     updateAccountMetadata,
     deleteAccount,
     addBalanceEntry,
-    fetchHistoricalData: fetchAllUserData,
-    upsertHistoricalDataPoint,
-    deleteHistoricalDataPoint,
+    fetchHistoricalData,
+    upsertHistoricalData,
+    deleteHistoricalData,
     fetchUserGoal,
     setUserGoal,
     deleteUserGoal,

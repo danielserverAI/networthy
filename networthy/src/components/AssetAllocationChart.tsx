@@ -8,7 +8,6 @@ import {
   Legend,
 } from 'recharts';
 import { useNetWorth, useNetWorthCalculations, getCurrentBalance } from '../context/NetWorthContext';
-import { AccountType } from '../types'; // Keep this for type checking
 
 // Color generation helper
 const stringToHslColor = (str: string, s: number, l: number): string => {

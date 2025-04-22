@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNetWorth, getCurrentBalance, getLatestBalanceEntry } from '../context/NetWorthContext';
 import { AccountForm } from './AccountForm';
-import { Account, AccountType, BalanceEntry } from '../types';
+import { Account, AccountType } from '../types';
 import { format, parseISO } from 'date-fns';
 import { AccountProgression } from './AccountProgression';
 

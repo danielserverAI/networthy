@@ -1,26 +1,9 @@
-import React, { useMemo } from 'react';
-import {
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import { format, parseISO, getYear, getMonth, getDate, startOfDay } from 'date-fns';
-import { useNetWorth, useNetWorthCalculations, getCurrentBalance, getLatestBalanceEntry } from '../context/NetWorthContext';
-import { Account, AccountType, NetWorthSnapshot, BalanceEntry } from '../types';
+import { useNetWorthCalculations } from '../context/NetWorthContext';
+// import { AccountType } from '../types'; // Keep if formatAccountType is used, remove otherwise
 
-const COLORS = {
-  checkings: '#38bdf8', // Sky 400
-  savings: '#60a5fa', // Blue 400
-  cash: '#a3e635', // Lime 400
-  investment: '#34d399', // Emerald 400
-  crypto: '#a78bfa', // Violet 400
-  real_estate: '#f472b6', // Pink 400
-  other_assets: '#fbbf24', // Amber 400
-  liability: '#ef4444', // Red 500
-};
+// Removed unused imports: React, Recharts components, date-fns, useNetWorth, other types, helpers
+
+// const COLORS = { ... }; // Removed
 
 // Helper to format currency
 const formatCurrency = (value: number): string => {
@@ -33,16 +16,11 @@ const formatCurrency = (value: number): string => {
 };
 
 export function NetWorthDashboard() {
-  const { state } = useNetWorth();
+  // const { state } = useNetWorth(); // Removed
   const { totalAssets, totalLiabilities, netWorth } = useNetWorthCalculations();
 
   // Helper to format type names for display
-  const formatAccountType = (type: AccountType): string => {
-    return type
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
+  // const formatAccountType = (type: AccountType): string => { ... }; // Removed
 
   return (
     <div className="space-y-8">

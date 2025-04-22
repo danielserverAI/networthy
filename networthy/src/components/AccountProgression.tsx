@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react'; // Removed
 import { Account, BalanceEntry } from '../types';
 import { format, parseISO } from 'date-fns';
 import {
