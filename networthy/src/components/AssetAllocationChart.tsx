@@ -139,13 +139,13 @@ const AssetAllocationChart = () => {
                 cursor={{ fill: 'rgba(200, 200, 200, 0.1)' }}
               />
               <Legend
-                layout="vertical"
-                verticalAlign="middle"
-                align="right"
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
                 iconType="circle"
-                wrapperStyle={{ paddingLeft: '10px' }} 
+                wrapperStyle={{ paddingTop: '10px' }}
                 formatter={(value: string) => (
-                  <span className="text-gray-700 dark:text-gray-300 truncate max-w-[100px]" title={value}>{value}</span> 
+                  <span className="text-gray-700 dark:text-gray-300 truncate max-w-[100px]" title={value}>{value}</span>
                 )}
               />
             </PieChart>

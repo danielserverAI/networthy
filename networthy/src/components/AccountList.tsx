@@ -311,7 +311,7 @@ export function AccountList() {
         </div>
       </div>
 
-      <div className="accounts-container p-1 space-y-0 overflow-x-auto">
+      <div className="accounts-container overflow-x-auto">
         {contextLoading ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading accounts...</div>
         ) : filteredAccounts.length === 0 ? (
