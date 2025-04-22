@@ -170,152 +170,145 @@ export function AccountForm({ account, onClose }: AccountFormProps) {
   }
 
   return (
-    // Modal wrapper - assuming parent component handles the modal itself
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-lg w-full m-4">
-         <div className="flex justify-between items-center mb-4">
-           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-             {account ? 'Edit Account' : 'Add New Account'}
-           </h3>
-           <button
-             onClick={onClose}
-             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl"
-             disabled={isSubmitting}
-           >
-             &times;
-           </button>
-         </div>
+    // Removed the outer modal wrapper div and header
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Institution */}
+      <div>
+        <label htmlFor="institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Institution <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          id="institution"
+          value={formData.institution}
+          onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+          className={`input mt-1 ${fieldErrors.institution ? 'border-red-500' : ''}`}
+          disabled={isSubmitting}
+          required
+        />
+        {fieldErrors.institution && (
+          <p className="mt-1 text-sm text-red-600">{fieldErrors.institution}</p>
+        )}
+      </div>
 
-         <form onSubmit={handleSubmit} className="space-y-4">
-             {/* Institution */}
-             <div>
-               <label htmlFor="institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                 Institution <span className="text-red-500">*</span>
-               </label>
-               <input
-                 type="text"
-                 id="institution"
-                 value={formData.institution}
-                 onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-                 className={`input mt-1 ${fieldErrors.institution ? 'border-red-500' : ''}`}
-                 disabled={isSubmitting}
-                 required
-               />
-               {fieldErrors.institution && (
-                 <p className="mt-1 text-sm text-red-600">{fieldErrors.institution}</p>
-               )}
-             </div>
+      {/* Account Name (Optional) */}
+       <div>
+         <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+           Account Name (Optional)
+         </label>
+         <input
+           type="text"
+           id="name"
+           value={formData.name}
+           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+           className="input mt-1"
+           placeholder="e.g., Primary Checking"
+           disabled={isSubmitting}
+         />
+       </div>
 
-             {/* Account Name (Optional) */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Account Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input mt-1"
-                  placeholder="e.g., Primary Checking"
-                  disabled={isSubmitting}
-                />
-              </div>
+      {/* Account Type */}
+      <div>
+        <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Account Type
+        </label>
+        <select
+          id="type"
+          value={formData.type}
+          onChange={(e) => setFormData({ ...formData, type: e.target.value as AccountType })}
+          className="input mt-1"
+          disabled={isSubmitting}
+        >
+          {accountTypes.map((type) => (
+            <option key={type} value={type}>
+              {formatAccountType(type)}
+            </option>
+          ))}
+        </select>
+      </div>
 
-             {/* Account Type */}
-             <div>
-               <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                 Account Type
-               </label>
-               <select
-                 id="type"
-                 value={formData.type}
-                 onChange={(e) => setFormData({ ...formData, type: e.target.value as AccountType })}
-                 className="input mt-1"
-                 disabled={isSubmitting}
-               >
-                 {accountTypes.map((type) => (
-                   <option key={type} value={type}>
-                     {formatAccountType(type)}
-                   </option>
-                 ))}
-               </select>
-             </div>
+      {/* Category (Optional) */}
+      <div>
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Category (Optional)
+          </label>
+          <input
+              type="text"
+              id="category"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="input mt-1"
+              placeholder="e.g., Cash, Investment, Debt"
+              disabled={isSubmitting}
+          />
+      </div>
 
-             {/* Category (Optional) */}
-             <div>
-                 <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                     Category (Optional)
-                 </label>
-                 <input
-                     type="text"
-                     id="category"
-                     value={formData.category}
-                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                     className="input mt-1"
-                     placeholder="e.g., Cash, Investment, Debt"
-                     disabled={isSubmitting}
-                 />
-             </div>
-
-             {/* Tags (Optional, comma-separated) */}
-             <div>
-                 <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                     Tags (Optional, comma-separated)
-                 </label>
-                 <input
-                     type="text"
-                     id="tags"
-                     value={formData.tags.join(', ')} // Display as comma-separated string
-                     onChange={handleTagsChange}
-                     className="input mt-1"
-                     placeholder="e.g., primary, travel, emergency"
-                     disabled={isSubmitting}
-                 />
-             </div>
+      {/* Tags (Optional, comma-separated) */}
+      <div>
+          <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Tags (Optional, comma-separated)
+          </label>
+          <input
+              type="text"
+              id="tags"
+              value={formData.tags.join(', ')} // Display as comma-separated string
+              onChange={handleTagsChange}
+              className="input mt-1"
+              placeholder="e.g., primary, travel, emergency"
+              disabled={isSubmitting}
+          />
+      </div>
 
 
-             {/* Balance */}
-             <div>
-               <label htmlFor="balance" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                 Balance <span className="text-red-500">*</span>
-               </label>
-               <div className="relative mt-1 rounded-md shadow-sm">
-                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                   <span className="text-gray-500 sm:text-sm">$</span>
-                 </div>
-                 <input
-                   type="number"
-                   id="balance"
-                   value={formData.balance}
-                   onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
-                   className={`input pl-7 pr-12 ${fieldErrors.balance ? 'border-red-500' : ''}`}
-                   step="0.01"
-                   placeholder="0.00"
-                   disabled={isSubmitting}
-                   required
-                 />
-               </div>
-               {fieldErrors.balance && (
-                 <p className="mt-1 text-sm text-red-600">{fieldErrors.balance}</p>
-               )}
-             </div>
+      {/* Balance */}
+      <div>
+        <label htmlFor="balance" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Balance <span className="text-red-500">*</span>
+        </label>
+        <div className="relative mt-1 rounded-md shadow-sm">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <span className="text-gray-500 sm:text-sm">$</span>
+          </div>
+          <input
+            type="number"
+            id="balance"
+            value={formData.balance}
+            onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+            className={`input pl-7 pr-12 ${fieldErrors.balance ? 'border-red-500' : ''}`}
+            step="0.01"
+            placeholder="0.00"
+            disabled={isSubmitting}
+            required
+          />
+        </div>
+        {fieldErrors.balance && (
+          <p className="mt-1 text-sm text-red-600">{fieldErrors.balance}</p>
+        )}
+      </div>
 
-             {/* Form Error Message */}
-             {formError && (
-                 <p className="mt-1 text-sm text-red-600 text-center">Error: {formError}</p>
-             )}
+      {/* Form Error Message */}
+      {formError && (
+          <p className="mt-1 text-sm text-red-600 text-center">Error: {formError}</p>
+      )}
 
-             {/* Buttons */}
-             <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700 mt-6">
-               <button type="button" onClick={onClose} className="btn-secondary" disabled={isSubmitting}>
-                 Cancel
-               </button>
-               <button type="submit" className="btn-primary" disabled={isSubmitting}>
-                 {isSubmitting ? 'Saving...' : (account ? 'Save Changes' : 'Add Account')}
-               </button>
-             </div>
-         </form>
-     </div>
-
+      {/* Submit/Cancel Buttons */}
+      <div className="flex justify-end space-x-3 pt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn-secondary"
+          disabled={isSubmitting}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (account ? 'Saving...' : 'Adding...') : (account ? 'Save Changes' : 'Add Account')}
+        </button>
+      </div>
+    </form>
   );
 } 
