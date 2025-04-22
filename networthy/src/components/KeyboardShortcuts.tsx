@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from 'react'; // Import hooks explicitly
 import { useTheme } from '../context/ThemeContext';
 
@@ -17,8 +18,12 @@ const shortcuts: Shortcut[] = [
   { key: 'Esc', description: 'Close modal/dialog' },
 ];
 
-export function KeyboardShortcuts() {
-  const { /* theme, */ toggleTheme } = useTheme(); // Removed theme variable
+interface KeyboardShortcutsProps {
+  onClose: () => void;
+}
+
+export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({ onClose }) => {
+  const { theme } = useTheme(); // Removed unused toggleTheme
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export function KeyboardShortcuts() {
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h3>
           <button 
-            onClick={() => setIsOpen(false)}
+            onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl"
           >
             &times;

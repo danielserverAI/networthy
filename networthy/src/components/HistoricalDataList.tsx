@@ -1,14 +1,15 @@
+import React from 'react';
 import { useState } from 'react'; // Import useState explicitly
 import { useNetWorth } from '../context/NetWorthContext';
 import { HistoricalDataPoint } from '../context/NetWorthContext'; // Import the type
-import { format } from 'date-fns';
+import { parseISO, formatDistanceToNow } from 'date-fns'; // Removed format
 
 interface HistoricalDataListProps {
   onEdit: (dataPoint: HistoricalDataPoint) => void; // Callback to signal editing
 }
 
 export function HistoricalDataList({ onEdit }: HistoricalDataListProps) {
-  const { state, deleteHistoricalDataPoint, loading, error } = useNetWorth();
+  const { state, deleteHistoricalData, loading, error } = useNetWorth();
   const [dataPointToDelete, setDataPointToDelete] = useState<HistoricalDataPoint | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function HistoricalDataList({ onEdit }: HistoricalDataListProps) {
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await deleteHistoricalDataPoint(dataPointToDelete.year);
+      await deleteHistoricalData(dataPointToDelete.year);
       setDataPointToDelete(null); // Close modal on success
     } catch (err) {
       console.error("Failed to delete historical data point:", err);

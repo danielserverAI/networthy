@@ -10,6 +10,8 @@ import {
 import { useNetWorth, useNetWorthCalculations, getCurrentBalance } from '../context/NetWorthContext';
 import { Account } from '../types';
 import { Pie as AntPie } from '@ant-design/plots';
+import type { PieConfig } from '@ant-design/plots';
+import { useTheme } from '../context/ThemeContext';
 
 // Color generation helper
 const stringToHslColor = (str: string, s: number, l: number): string => {

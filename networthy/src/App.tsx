@@ -9,7 +9,7 @@ import { Analytics } from './components/Analytics';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { useAuth } from './context/AuthContext';
 import AuthGate from './components/AuthGate';
-import { AssetAllocationChart } from './components/AssetAllocationChart';
+import AssetAllocationChart from './components/AssetAllocationChart';
 import { NetWorthTrendChart } from './components/NetWorthTrendChart';
 import { UserProfileDropdown } from './components/UserProfileDropdown';
 
@@ -26,8 +26,6 @@ function AppContent() {
     if (!user || loading || state.accounts.length === 0) {
       return;
     }
-
-    // Dispatch action to create snapshot with calculated totals
     dispatch({
       type: 'ADD_SNAPSHOT',
       payload: {
@@ -37,14 +35,9 @@ function AppContent() {
         netWorth,
       }
     });
-
-    // Setup auto backup (Temporarily commented out)
-    // Consider replacing with Supabase sync logic later
-    // setupAutoBackup(state.accounts, state.snapshots);
-
   }, [state.accounts, dispatch, user, loading, totalAssets, totalLiabilities, netWorth]);
 
-  // Handle keyboard shortcuts (No change needed for AuthGate)
+  // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) {
@@ -55,15 +48,15 @@ function AppContent() {
             break;
           case 'n':
             e.preventDefault();
-            // Add new account - handled by AccountList component
+            // Add new account - placeholder/handled elsewhere
             break;
           case 's':
             e.preventDefault();
-            // Save changes - handled by individual components
+            // Save changes - placeholder/handled elsewhere
             break;
           case 'h':
             e.preventDefault();
-            alert('Historical data entry shortcut (Ctrl+H) pressed, but component is not implemented/used.');
+            // Historical data - placeholder
             break;
           case 'm':
             e.preventDefault();
@@ -80,7 +73,6 @@ function AppContent() {
         setShowShortcuts(false);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleTheme]);
@@ -88,6 +80,7 @@ function AppContent() {
   // Render loading state or main content guarded by AuthGate
   return (
     <AuthGate>
+      {/* Reverted Structure: Mimics typical dashboard layout */}
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
@@ -102,8 +95,8 @@ function AppContent() {
                 {theme === 'light' ? '🌙' : '☀️'}
               </button>
               {user && (
-                <UserProfileDropdown 
-                  onDataManagementClick={() => setShowDataManagement(true)} 
+                <UserProfileDropdown
+                  onDataManagementClick={() => setShowDataManagement(true)}
                 />
               )}
             </div>
@@ -117,19 +110,17 @@ function AppContent() {
              <NetWorthDashboard />
           </div>
 
-          {/* Second Row: Charts (using grid) - Make items stretch and set min height */}
+          {/* Second Row: Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-stretch min-h-[350px]">
-             {/* Net Worth Trend Chart */}
              <div className="lg:col-span-3">
                 <NetWorthTrendChart />
              </div>
-             {/* Asset Allocation Chart */}
              <div className="lg:col-span-2">
-                 <AssetAllocationChart />
+                 <AssetAllocationChart /> {/* Uses default import */}
              </div>
           </div>
 
-          {/* Third Row: Remaining Analytics (Perf/Goals) */}
+          {/* Third Row: Analytics */}
           <div>
             <Analytics />
           </div>
@@ -164,13 +155,16 @@ function AppContent() {
         )}
 
         {/* Keyboard Shortcuts Modal */}
-        {showShortcuts && <KeyboardShortcuts />}
+        {showShortcuts && <KeyboardShortcuts />} {/* Removed onClose prop */}
+
       </div>
     </AuthGate>
   );
 }
 
 function App() {
+  // Assuming AuthProvider and NetWorthProvider wrap AppContent higher up if needed
+  // For simplicity here, just rendering AppContent
   return <AppContent />;
 }
 

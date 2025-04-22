@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNetWorth } from '../context/NetWorthContext';
 import { format, parseISO, subMonths, subYears, formatISO, endOfYear } from 'date-fns';
 import {

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabaseClient';
 
 interface UserProfileDropdownProps {
   onDataManagementClick: () => void;
