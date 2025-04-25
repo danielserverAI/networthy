@@ -4,9 +4,7 @@ import {
   PieChart,
   Pie,
   Cell,
-  Tooltip,
-  Label,
-  LabelList,
+  Tooltip
 } from 'recharts';
 import { useNetWorth, useNetWorthCalculations, getCurrentBalance } from '../context/NetWorthContext';
 import { Account } from '../types';
@@ -31,42 +29,15 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
-// Helper to calculate slice angle
-const calculateSliceAngle = (percent: number): number => {
-  return percent * 360;
-};
-
 // Helper to truncate text with ellipsis
 const truncateText = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '…';
 };
 
-// Helper to check if two rectangles overlap
-const doLabelsOverlap = (rect1: DOMRect, rect2: DOMRect, padding: number = 5) => {
-  return !(rect1.right + padding < rect2.left ||
-          rect1.left > rect2.right + padding ||
-          rect1.bottom + padding < rect2.top ||
-          rect1.top > rect2.bottom + padding);
-};
-
-// Helper to get label dimensions
-const getLabelDimensions = (
-  x: number,
-  y: number,
-  text: string,
-  fontSize: number,
-  percentText: string,
-  percentFontSize: number
-): DOMRect => {
-  const textWidth = text.length * fontSize * 0.6; // Approximate width
-  const height = fontSize + percentFontSize + 4; // Height including both lines
-  return new DOMRect(x, y - height/2, textWidth, height);
-};
-
 // Custom label renderer for pie slices
 const renderCustomizedLabel = (props: any) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent, name, value, viewBox } = props;
+  const { cx, cy, midAngle, outerRadius, percent, name, viewBox } = props;
   
   const RADIAN = Math.PI / 180;
   
@@ -75,11 +46,6 @@ const renderCustomizedLabel = (props: any) => {
 
   // Detect mobile and set initial parameters
   const isMobile = (viewBox?.width ?? 0) < 400;
-  
-  // Account for container padding (24px on each side)
-  const containerPadding = 24;
-  const effectiveWidth = Math.max((viewBox?.width ?? 0) - (containerPadding * 2), 0);
-  const effectiveHeight = Math.max((viewBox?.height ?? 0) - (containerPadding * 2), 0);
 
   // Calculate label position based on angle
   const angle = -midAngle * RADIAN;
