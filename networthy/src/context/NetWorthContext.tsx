@@ -230,8 +230,6 @@ interface NetWorthContextType {
   updateAccountMetadata: (accountData: Omit<Account, 'user_id' | 'created_at' | 'balanceHistory'>) => Promise<Account | null>;
   deleteAccount: (accountId: string) => Promise<void>;
   addBalanceEntry: (accountId: string, balance: number, date: string) => Promise<void>;
-  fetchSnapshots: () => Promise<void>;
-  saveSnapshot: (snapshot: NetWorthSnapshot) => Promise<void>;
   createAndSaveSnapshot: (date?: string) => Promise<void>;
   fetchHistoricalData: () => Promise<void>;
   upsertHistoricalData: (dataPoint: HistoricalDataPoint) => Promise<void>;
@@ -246,53 +244,6 @@ const NetWorthContext = createContext<NetWorthContextType | null>(null);
 export function NetWorthProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
-
-  const fetchSnapshots = useCallback(async () => {
-    if (!user) return;
-    dispatch({ type: 'SET_LOADING', payload: true });
-    try {
-      // Try to fetch from database first
-      const { data, error } = await supabase
-        .from('net_worth_snapshots')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: true });
-      
-      if (error) {
-        // If database table doesn't exist, try localStorage fallback
-        if (error.code === '42P01') { // Table doesn't exist
-          console.log('net_worth_snapshots table not found, using localStorage fallback');
-          const localSnapshots = localStorage.getItem(`snapshots_${user.id}`);
-          if (localSnapshots) {
-            const snapshots = JSON.parse(localSnapshots);
-            dispatch({ type: 'SET_SNAPSHOTS', payload: snapshots });
-          } else {
-            dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
-          }
-        } else {
-          throw error;
-        }
-      } else {
-        const snapshots = data.map(snap => ({
-          id: snap.id,
-          date: snap.date,
-          totalAssets: snap.total_assets,
-          totalLiabilities: snap.total_liabilities,
-          netWorth: snap.net_worth,
-          accounts: snap.accounts || []
-        }));
-        dispatch({ type: 'SET_SNAPSHOTS', payload: snapshots });
-      }
-      
-      dispatch({ type: 'SET_ERROR', payload: null });
-    } catch (err: any) {
-      console.error("Error fetching snapshots:", err);
-      dispatch({ type: 'SET_ERROR', payload: err });
-      dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [user]);
 
   const saveSnapshot = useCallback(async (snapshot: NetWorthSnapshot) => {
     if (!user) throw new Error("User not authenticated");
@@ -463,12 +414,44 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'SET_HISTORICAL_DATA', payload: historicalDataResponse.data as HistoricalDataPoint[] });
       }
 
-      // Fetch snapshots separately to handle table not existing
+      // Fetch snapshots inline to avoid circular dependencies
       try {
-        await fetchSnapshots();
+        // Try to fetch from database first
+        const { data: snapshotsData, error: snapshotsError } = await supabase
+          .from('net_worth_snapshots')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: true });
+        
+        if (snapshotsError) {
+          // If database table doesn't exist, try localStorage fallback
+          if (snapshotsError.code === '42P01') { // Table doesn't exist
+            console.log('net_worth_snapshots table not found, using localStorage fallback');
+            const localSnapshots = localStorage.getItem(`snapshots_${user.id}`);
+            if (localSnapshots) {
+              const snapshots = JSON.parse(localSnapshots);
+              dispatch({ type: 'SET_SNAPSHOTS', payload: snapshots });
+            } else {
+              dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
+            }
+          } else {
+            throw snapshotsError;
+          }
+        } else {
+          const snapshots = snapshotsData.map(snap => ({
+            id: snap.id,
+            date: snap.date,
+            totalAssets: snap.total_assets,
+            totalLiabilities: snap.total_liabilities,
+            netWorth: snap.net_worth,
+            accounts: snap.accounts || []
+          }));
+          dispatch({ type: 'SET_SNAPSHOTS', payload: snapshots });
+        }
       } catch (snapshotError: any) {
         console.error("Error fetching snapshots:", snapshotError);
         // Don't fail the entire data fetch if snapshots fail
+        dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
       }
 
       if (goalResponse.error) {
@@ -771,8 +754,6 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
     updateAccountMetadata,
     deleteAccount,
     addBalanceEntry,
-    fetchSnapshots,
-    saveSnapshot,
     createAndSaveSnapshot,
     fetchHistoricalData,
     upsertHistoricalData,
