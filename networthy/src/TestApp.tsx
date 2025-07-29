@@ -1,4 +1,3 @@
-import React from 'react';
 import { TestChart } from './components/TestChart';
 
 export function TestApp() {

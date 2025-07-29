@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { format, parseISO, subMonths, subYears, formatISO, endOfYear } from 'date-fns';
 import {
   ResponsiveContainer,
@@ -36,20 +36,24 @@ export function TestChart() {
 
     // Determine start date based on timeFrame
     switch (timeFrame) {
-      case '1M':
+      case '1M': {
         startDate = subMonths(now, 1);
         break;
-      case '3M':
+      }
+      case '3M': {
         startDate = subMonths(now, 3);
         break;
-      case '6M':
+      }
+      case '6M': {
         startDate = subMonths(now, 6);
         break;
-      case '1Y':
+      }
+      case '1Y': {
         startDate = subYears(now, 1);
         break;
+      }
       case 'ALL':
-      default:
+      default: {
         const earliestSnapshotDate = mockSnapshots.length > 0 
           ? parseISO(mockSnapshots.reduce((earliest, s) => s.date < earliest ? s.date : earliest, mockSnapshots[0].date))
           : now;
@@ -61,6 +65,7 @@ export function TestChart() {
           startDate = subYears(now, 100); 
         }
         break;
+      }
     }
 
     console.log(`Start date for ${timeFrame}:`, startDate);
@@ -72,7 +77,7 @@ export function TestChart() {
         isHistorical: true 
       }));
 
-    const snapshotPoints = mockSnapshots
+    const allSnapshotPoints = mockSnapshots
       .map(snapshot => ({
         date: snapshot.date,
         value: snapshot.netWorth,
@@ -80,9 +85,9 @@ export function TestChart() {
       }));
 
     console.log(`Historical points: ${historicalPoints.length}`);
-    console.log(`Snapshot points: ${snapshotPoints.length}`);
+    console.log(`Snapshot points: ${allSnapshotPoints.length}`);
 
-    const allPoints = [...historicalPoints, ...snapshotPoints]
+    const allPoints = [...historicalPoints, ...allSnapshotPoints]
       .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
     console.log(`All points: ${allPoints.length}`);
@@ -97,9 +102,10 @@ export function TestChart() {
       return [];
     }
 
-    const monthlyDataMap = new Map<string, { sum: number; count: number; points: number[] }>();
+    // Use different aggregation strategies based on timeframe
     const finalChartPoints: { date: string; value: number; isHistorical?: boolean }[] = [];
 
+    // Add historical points first (always included as-is)
     filteredPoints.forEach(point => {
       if (point.isHistorical) {
         finalChartPoints.push({
@@ -107,7 +113,80 @@ export function TestChart() {
           value: point.value,
           isHistorical: true
         });
-      } else {
+      }
+    });
+
+    // Get only snapshot points for aggregation
+    const snapshotPoints = filteredPoints.filter(p => !p.isHistorical);
+
+    if (timeFrame === '1M') {
+      // For 1M: Show individual data points (no aggregation)
+      snapshotPoints.forEach(point => {
+        finalChartPoints.push({
+          date: format(parseISO(point.date), 'yyyy-MM-dd'),
+          value: point.value,
+          isHistorical: false
+        });
+      });
+    } else if (timeFrame === '3M') {
+      // For 3M: Use weekly aggregation
+      const weeklyDataMap = new Map<string, { sum: number; count: number; points: number[] }>();
+      
+      snapshotPoints.forEach(point => {
+        const pointDate = parseISO(point.date);
+        // Get the start of the week (Monday)
+        const startOfWeek = new Date(pointDate);
+        startOfWeek.setDate(pointDate.getDate() - pointDate.getDay() + 1);
+        const weekKey = format(startOfWeek, 'yyyy-MM-dd');
+        
+        if (!weeklyDataMap.has(weekKey)) {
+          weeklyDataMap.set(weekKey, { sum: 0, count: 0, points: [] });
+        }
+        const weekData = weeklyDataMap.get(weekKey)!;
+        weekData.sum += point.value;
+        weekData.count += 1;
+        weekData.points.push(point.value);
+      });
+
+      weeklyDataMap.forEach((data, weekKey) => {
+        finalChartPoints.push({
+          date: weekKey,
+          value: data.sum / data.count,
+          isHistorical: false
+        });
+      });
+    } else if (timeFrame === '6M') {
+      // For 6M: Use bi-weekly aggregation
+      const biWeeklyDataMap = new Map<string, { sum: number; count: number; points: number[] }>();
+      
+      snapshotPoints.forEach(point => {
+        const pointDate = parseISO(point.date);
+        // Get bi-weekly period (every 14 days)
+        const dayOfMonth = pointDate.getDate();
+        const biWeeklyPeriod = dayOfMonth <= 14 ? 1 : 15;
+        const biWeeklyKey = format(new Date(pointDate.getFullYear(), pointDate.getMonth(), biWeeklyPeriod), 'yyyy-MM-dd');
+        
+        if (!biWeeklyDataMap.has(biWeeklyKey)) {
+          biWeeklyDataMap.set(biWeeklyKey, { sum: 0, count: 0, points: [] });
+        }
+        const biWeeklyData = biWeeklyDataMap.get(biWeeklyKey)!;
+        biWeeklyData.sum += point.value;
+        biWeeklyData.count += 1;
+        biWeeklyData.points.push(point.value);
+      });
+
+      biWeeklyDataMap.forEach((data, biWeeklyKey) => {
+        finalChartPoints.push({
+          date: biWeeklyKey,
+          value: data.sum / data.count,
+          isHistorical: false
+        });
+      });
+    } else {
+      // For 1Y and ALL: Use monthly aggregation (original logic)
+      const monthlyDataMap = new Map<string, { sum: number; count: number; points: number[] }>();
+      
+      snapshotPoints.forEach(point => {
         const monthKey = format(parseISO(point.date), 'yyyy-MM');
         if (!monthlyDataMap.has(monthKey)) {
           monthlyDataMap.set(monthKey, { sum: 0, count: 0, points: [] });
@@ -116,16 +195,16 @@ export function TestChart() {
         monthData.sum += point.value;
         monthData.count += 1;
         monthData.points.push(point.value);
-      }
-    });
-
-    monthlyDataMap.forEach((data, monthKey) => {
-      finalChartPoints.push({
-        date: format(parseISO(`${monthKey}-01`), 'yyyy-MM-dd'), 
-        value: data.sum / data.count, 
-        isHistorical: false
       });
-    });
+
+      monthlyDataMap.forEach((data, monthKey) => {
+        finalChartPoints.push({
+          date: format(parseISO(`${monthKey}-01`), 'yyyy-MM-dd'), 
+          value: data.sum / data.count, 
+          isHistorical: false
+        });
+      });
+    }
 
     finalChartPoints.sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
