@@ -54,6 +54,7 @@ export type NetWorthAction =
   | { type: 'ADD_BALANCE_ENTRY'; payload: { accountId: string; balance: number; date: string } }
   | { type: 'DELETE_ACCOUNT'; payload: string }
   | { type: 'ADD_SNAPSHOT'; payload: Snapshot }
+  | { type: 'SET_SNAPSHOTS'; payload: NetWorthSnapshot[] }
   | { type: 'UPDATE_ACCOUNTS_ORDER'; payload: Account[] }
   | { type: 'SET_HISTORICAL_DATA'; payload: HistoricalDataPoint[] }
   | { type: 'UPSERT_HISTORICAL_DATA'; payload: HistoricalDataPoint }
@@ -144,6 +145,11 @@ function reducer(state: State, action: NetWorthAction): State {
         accounts: state.accounts.filter((account: Account) => account.id !== action.payload),
       };
     }
+    case 'SET_SNAPSHOTS':
+      return {
+        ...state,
+        snapshots: action.payload.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      };
     case 'ADD_SNAPSHOT': {
       const currentTotals = calculateNetWorth(state.accounts);
       const snapshotAccounts = state.accounts.map((acc: Account) => ({
@@ -163,6 +169,7 @@ function reducer(state: State, action: NetWorthAction): State {
       if (state.accounts.length === 0) {
         return state;
       }
+      
       return {
         ...state,
         snapshots: [...state.snapshots, newSnapshot],
@@ -223,6 +230,9 @@ interface NetWorthContextType {
   updateAccountMetadata: (accountData: Omit<Account, 'user_id' | 'created_at' | 'balanceHistory'>) => Promise<Account | null>;
   deleteAccount: (accountId: string) => Promise<void>;
   addBalanceEntry: (accountId: string, balance: number, date: string) => Promise<void>;
+  fetchSnapshots: () => Promise<void>;
+  saveSnapshot: (snapshot: NetWorthSnapshot) => Promise<void>;
+  createAndSaveSnapshot: (date?: string) => Promise<void>;
   fetchHistoricalData: () => Promise<void>;
   upsertHistoricalData: (dataPoint: HistoricalDataPoint) => Promise<void>;
   deleteHistoricalData: (year: number) => Promise<void>;
@@ -237,10 +247,184 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  const fetchSnapshots = useCallback(async () => {
+    if (!user) return;
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      // Try to fetch from database first
+      const { data, error } = await supabase
+        .from('net_worth_snapshots')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+      
+      if (error) {
+        // If database table doesn't exist, try localStorage fallback
+        if (error.code === '42P01') { // Table doesn't exist
+          console.log('net_worth_snapshots table not found, using localStorage fallback');
+          const localSnapshots = localStorage.getItem(`snapshots_${user.id}`);
+          if (localSnapshots) {
+            const snapshots = JSON.parse(localSnapshots);
+            dispatch({ type: 'SET_SNAPSHOTS', payload: snapshots });
+          } else {
+            dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        const snapshots = data.map(snap => ({
+          id: snap.id,
+          date: snap.date,
+          totalAssets: snap.total_assets,
+          totalLiabilities: snap.total_liabilities,
+          netWorth: snap.net_worth,
+          accounts: snap.accounts || []
+        }));
+        dispatch({ type: 'SET_SNAPSHOTS', payload: snapshots });
+      }
+      
+      dispatch({ type: 'SET_ERROR', payload: null });
+    } catch (err: any) {
+      console.error("Error fetching snapshots:", err);
+      dispatch({ type: 'SET_ERROR', payload: err });
+      dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, [user]);
+
+  const saveSnapshot = useCallback(async (snapshot: NetWorthSnapshot) => {
+    if (!user) throw new Error("User not authenticated");
+    
+    try {
+      // Try to save to database first
+      const snapshotToSave = {
+        id: snapshot.id,
+        user_id: user.id,
+        date: snapshot.date,
+        total_assets: snapshot.totalAssets,
+        total_liabilities: snapshot.totalLiabilities,
+        net_worth: snapshot.netWorth,
+        accounts: snapshot.accounts
+      };
+      
+      const { error } = await supabase
+        .from('net_worth_snapshots')
+        .upsert(snapshotToSave);
+      
+      if (error) {
+        // If database table doesn't exist, use localStorage fallback
+        if (error.code === '42P01') { // Table doesn't exist
+          console.log('net_worth_snapshots table not found, saving to localStorage');
+          const localSnapshots = localStorage.getItem(`snapshots_${user.id}`);
+          const snapshots = localSnapshots ? JSON.parse(localSnapshots) : [];
+          
+          // Find and replace existing snapshot with same ID, or add new one
+          const existingIndex = snapshots.findIndex((s: NetWorthSnapshot) => s.id === snapshot.id);
+          if (existingIndex >= 0) {
+            snapshots[existingIndex] = snapshot;
+          } else {
+            snapshots.push(snapshot);
+          }
+          
+          localStorage.setItem(`snapshots_${user.id}`, JSON.stringify(snapshots));
+        } else {
+          throw error;
+        }
+      }
+    } catch (err: any) {
+      console.error("Error saving snapshot:", err);
+      // Still try localStorage as fallback
+      try {
+        const localSnapshots = localStorage.getItem(`snapshots_${user.id}`);
+        const snapshots = localSnapshots ? JSON.parse(localSnapshots) : [];
+        
+        const existingIndex = snapshots.findIndex((s: NetWorthSnapshot) => s.id === snapshot.id);
+        if (existingIndex >= 0) {
+          snapshots[existingIndex] = snapshot;
+        } else {
+          snapshots.push(snapshot);
+        }
+        
+        localStorage.setItem(`snapshots_${user.id}`, JSON.stringify(snapshots));
+        console.log('Saved snapshot to localStorage as fallback');
+      } catch (localErr) {
+        console.error("Failed to save to localStorage as well:", localErr);
+        throw err; // Re-throw original error
+      }
+    }
+  }, [user]);
+
+  const createAndSaveSnapshot = useCallback(async (date?: string) => {
+    if (!user || state.accounts.length === 0) return;
+    
+    const snapshotDate = date || new Date().toISOString();
+    const snapshotDateOnly = snapshotDate.split('T')[0]; // Get just the date part
+    
+    // Check if we already have a snapshot for today
+    const existingTodaySnapshot = state.snapshots.find(snapshot => 
+      snapshot.date.split('T')[0] === snapshotDateOnly
+    );
+    
+    const currentTotals = calculateNetWorth(state.accounts);
+    
+    // If we have a snapshot for today, only update it if the values have changed significantly
+    if (existingTodaySnapshot) {
+      const netWorthDiff = Math.abs(existingTodaySnapshot.netWorth - currentTotals.netWorth);
+      if (netWorthDiff < 0.01) { // Less than 1 cent difference
+        return; // Skip creating new snapshot
+      }
+    }
+    
+    const snapshotAccounts = state.accounts.map((acc: Account) => ({
+      id: acc.id,
+      balance: getCurrentBalance(acc)
+    }));
+
+    const newSnapshot: NetWorthSnapshot = {
+      id: existingTodaySnapshot?.id || uuidv4(), // Reuse ID if updating today's snapshot
+      date: snapshotDate,
+      totalAssets: currentTotals.totalAssets,
+      totalLiabilities: currentTotals.totalLiabilities,
+      netWorth: currentTotals.netWorth,
+      accounts: snapshotAccounts,
+    };
+
+    try {
+      // Save to database/localStorage
+      await saveSnapshot(newSnapshot);
+      
+      // Update local state
+      dispatch({ type: 'ADD_SNAPSHOT', payload: {
+        date: newSnapshot.date,
+        totalAssets: newSnapshot.totalAssets,
+        totalLiabilities: newSnapshot.totalLiabilities,
+        netWorth: newSnapshot.netWorth,
+      }});
+      
+      console.log('Successfully created snapshot:', { 
+        date: snapshotDate, 
+        netWorth: currentTotals.netWorth,
+        isUpdate: !!existingTodaySnapshot 
+      });
+    } catch (err: any) {
+      console.error("Error creating and saving snapshot:", err);
+      // Still update local state even if database save fails
+      dispatch({ type: 'ADD_SNAPSHOT', payload: {
+        date: newSnapshot.date,
+        totalAssets: newSnapshot.totalAssets,
+        totalLiabilities: newSnapshot.totalLiabilities,
+        netWorth: newSnapshot.netWorth,
+      }});
+    }
+  }, [user, state.accounts, state.snapshots, saveSnapshot]);
+
   const fetchAllUserData = useCallback(async () => {
     if (!user) {
       dispatch({ type: 'SET_ACCOUNTS', payload: [] });
       dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
+      dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
       dispatch({ type: 'SET_USER_GOAL', payload: null });
       dispatch({ type: 'SET_ERROR', payload: null });
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -279,6 +463,14 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'SET_HISTORICAL_DATA', payload: historicalDataResponse.data as HistoricalDataPoint[] });
       }
 
+      // Fetch snapshots separately to handle table not existing
+      try {
+        await fetchSnapshots();
+      } catch (snapshotError: any) {
+        console.error("Error fetching snapshots:", snapshotError);
+        // Don't fail the entire data fetch if snapshots fail
+      }
+
       if (goalResponse.error) {
           console.error("Error fetching user goal:", goalResponse.error);
           dispatch({ type: 'SET_USER_GOAL', payload: null });
@@ -292,6 +484,7 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err : new Error(String(err)) });
         dispatch({ type: 'SET_ACCOUNTS', payload: [] });
         dispatch({ type: 'SET_HISTORICAL_DATA', payload: [] });
+        dispatch({ type: 'SET_SNAPSHOTS', payload: [] });
         dispatch({ type: 'SET_USER_GOAL', payload: null });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -578,6 +771,9 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
     updateAccountMetadata,
     deleteAccount,
     addBalanceEntry,
+    fetchSnapshots,
+    saveSnapshot,
+    createAndSaveSnapshot,
     fetchHistoricalData,
     upsertHistoricalData,
     deleteHistoricalData,

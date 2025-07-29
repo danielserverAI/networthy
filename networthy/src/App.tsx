@@ -14,7 +14,7 @@ import { NetWorthTrendChart } from './components/NetWorthTrendChart';
 import { UserProfileDropdown } from './components/UserProfileDropdown';
 
 function AppContent() {
-  const { state, dispatch } = useNetWorth();
+  const { state, createAndSaveSnapshot } = useNetWorth();
   const { theme, toggleTheme } = useTheme();
   const { totalAssets, totalLiabilities, netWorth } = useNetWorthCalculations();
   const [showDataManagement, setShowDataManagement] = useState(false);
@@ -26,16 +26,8 @@ function AppContent() {
     if (!user || loading || state.accounts.length === 0) {
       return;
     }
-    dispatch({
-      type: 'ADD_SNAPSHOT',
-      payload: {
-        date: new Date().toISOString(),
-        totalAssets,
-        totalLiabilities,
-        netWorth,
-      }
-    });
-  }, [state.accounts, dispatch, user, loading, totalAssets, totalLiabilities, netWorth]);
+    createAndSaveSnapshot();
+  }, [state.accounts, createAndSaveSnapshot, user, loading]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
