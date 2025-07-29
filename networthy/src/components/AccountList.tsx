@@ -66,7 +66,7 @@ export function AccountList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<AccountType[]>([]);
-  const [sortBy, setSortBy] = useState<string>('institution');
+  const [sortBy, setSortBy] = useState<string>('balance_high_low');
   
   // State for inline editing
   const [editingBalanceAccountId, setEditingBalanceAccountId] = useState<string | null>(null);
